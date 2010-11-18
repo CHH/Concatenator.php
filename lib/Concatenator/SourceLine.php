@@ -94,7 +94,6 @@ class Concatenator_SourceLine
 		if ($this->command !== null) {
 			return $this->command;
 		}
-		
 		if (!$this->isComment()) {
 			return null;
 		}
@@ -103,7 +102,7 @@ class Concatenator_SourceLine
 			return null;
 		}
 		$command = trim(substr($comment, 1));
-		$parts = explode(" ", $command);
+		$parts   = explode(" ", $command);
 		
 		return $this->command = array($parts[0], $parts[1]);
 	}
@@ -129,8 +128,10 @@ class Concatenator_SourceLine
 		
 			$constant = trim($constant);
 		
-			if (!isset($constants[$constant])) continue;
-		
+			if (!isset($constants[$constant])) {
+				throw new Exception("Constant {$constant} not defined, please check your constants.yml");
+			}
+			
 			$this->line = str_replace($replace, (string) $constants[$constant], $this->line);
 		}
 		
