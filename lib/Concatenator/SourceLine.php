@@ -76,7 +76,7 @@ class Concatenator_SourceLine
 	
 	public function endsPdocComment()
 	{
-		return substr(trim($this->line), 0, 3) == '**/';
+		return substr(trim($this->line), -3, 3) == '**/';
 	}
 	
 	public function beginsMultilineComment()
@@ -86,7 +86,7 @@ class Concatenator_SourceLine
 	
 	public function endsMultilineComment()
 	{
-		return substr(trim($this->line), 0, 2) == '*/';
+		return substr(trim($this->line), -2, 2) == '*/';
 	}
 	
 	protected function parseCommand()

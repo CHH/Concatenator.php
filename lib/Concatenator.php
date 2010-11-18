@@ -62,8 +62,6 @@ class Concatenator
 		$inMultilineComment = false;
 		$inPdocComment      = false;
 		
-		$concatenation->fwrite("// file \"{$file->getFilename()}\" \n");
-		
 		foreach ($file as $line) {
 			$line->interpolateConstants($constants);
 			
@@ -99,32 +97,25 @@ class Concatenator
 			if ($line->isProvide() or $line->isRequire()) continue;
 			
 			if ($this->stripComments) {
+				// Strip C-style single line comments
 				if ($line->isComment()) {
 					continue;
 				}
-			
+				
 				if ($line->beginsPdocComment()) {
 					$inPdocComment = true;
 				}
 			
 				if ($inPdocComment) {
-					$inPdocComment = 
-						($line->endsPdocComment() or $line->endsMultilineComment()) ? false : true;
+					$inPdocComment = ($line->endsPdocComment() or $line->endsMultilineComment()) 
+						? false 
+						: true;
+						
 					continue;
 				}
-			
+				
 				// Strip /* ... */ single line comments
-				if ($line->beginsMultilineComment() and (substr($line->toString(), -2, 2) == '*/')) {
-					continue;
-				}
-			
-				if ($line->beginsMultilineComment()) {
-					$inMultilineComment = true;
-				}
-			
-				if ($inMultilineComment) {
-					$inMultilineComment = $line->endsMultilineComment() ? false : true;
-					$concatenation->fwrite($line->toString());
+				if ($line->beginsMultilineComment() and $line->endsMultilineComment()) {
 					continue;
 				}
 			}
