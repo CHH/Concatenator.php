@@ -1,14 +1,13 @@
 <?php
 /**
- * A simple file concatenator, made for concatenating javascript files and
- * which can also be used with other files.
+ * A simple library for file concatenation and dependency tracking,
+ * (almost) compatible to Sprockets {@link http://getsprockets.org}
  *
- * @category  Concatenator
  * @package   Concatenator
  * @author    Christoph Hochstrasser <c.hochstrasser@szene1.at>
- * @since     2010/11/16
- * @copyright Copyright (c) 2010, Szene1 Entertainment GmbH
- * @license   
+ * @copyright Copyright (c) 2010, Szene1 Entertainment GmbH (http://szene1.at)
+ * @license   New BSD License (see LICENSE.txt distributed with the package)
+ * @link      http://github.com/CHH/concatenator
  */
 
 /**
