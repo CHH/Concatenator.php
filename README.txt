@@ -1,3 +1,4 @@
+Copyright (c) 2010 Szene1 Entertainment GmbH
 
 Concatenator is a simple library for concatenating text files and managing their
 dependencies via directives.
