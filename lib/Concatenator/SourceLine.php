@@ -20,9 +20,8 @@ class Concatenator_SourceLine
 	
 	const COMMAND_START = "=";
 	
-	public function __construct(Concatenator_SourceFile $sourceFile, $line, $lineNumber)
+	public function __construct($line, $lineNumber)
 	{
-		$this->sourceFile = $sourceFile;
 		$this->line       = $line;
 		$this->lineNumber = $lineNumber;
 	}
