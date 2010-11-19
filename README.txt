@@ -1,7 +1,8 @@
 Copyright (c) 2010 Szene1 Entertainment GmbH
 
 Concatenator is a simple library for concatenating text files and managing their
-dependencies via directives.
+dependencies via directives. It's tested with PHP 5.3, but may work on 5.2 also since it does not rely on any
+of 5.3's language features. It relies heavily on SplFileObject and SplTempFileObject.
 
 Installation:
 Put the contents of the "lib" folder into your library path.
