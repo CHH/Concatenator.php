@@ -30,6 +30,7 @@ class Concatenator
 	
 	protected $assetRoot;
 	
+	protected $expandPaths   = true;
 	protected $stripComments = true;
 	
 	protected $constants;
@@ -55,7 +56,7 @@ class Concatenator
 			$file .= '.js';
 		}
 		
-		$file = $this->getRealpath($file);
+		$file = $this->find($file);
 		$file = new Concatenator_SourceFile($file);
 		
 		$constants          = $this->readConstants();
@@ -73,7 +74,7 @@ class Concatenator
 				$argument = $line->getRequire();
 				
 				$searchLoadPath = substr($argument, 0, 1) === '<';
-					
+				
 				$argument = trim($argument, '<>"');
 				
 				if (substr($argument, -3, 3) !== '.js') {
@@ -81,7 +82,7 @@ class Concatenator
 				}
 				
 				$requiredFile = $searchLoadPath 
-					? $this->getRealpath($argument) 
+					? $this->find($argument) 
 					: realpath(dirname($file) . DIRECTORY_SEPARATOR . $argument);
 				
 				if ($requiredFile) {	
@@ -142,6 +143,12 @@ class Concatenator
 		return $this;		
 	}
 	
+	public function setExpandPaths($expandPaths = true)
+	{
+		$this->expandPaths = $expandPaths;
+		return $this;
+	}
+	
 	public function setStripComments($stripComments = true)
 	{
 		$this->stripComments = $stripComments;
@@ -156,16 +163,42 @@ class Concatenator
 	
 	public function setLoadPath($loadPath)
 	{
+		$this->loadPath = array();
 		if (!is_array($loadPath)) {
 			$loadPath = array($loadPath);
 		}
-		$this->loadPath = array_merge($this->loadPath, $loadPath);
+		foreach ($loadPath as $path) {
+			if ($this->expandPaths) {
+				$matches = glob($path);
+				if (false === $matches) {
+					continue;
+				}
+				foreach ($matches as $match) {
+					$this->loadPath[] = $match;
+				}
+				continue;
+			}
+			$this->loadPath[] = $path;
+		}
 		return $this;
 	}
 	
 	public function setSourceFiles(Array $sourceFiles)
 	{
-		$this->sourceFiles = $sourceFiles;
+		$this->sourceFiles = array();
+		foreach ($sourceFiles as $path) {
+			if ($this->expandPaths) {
+				$matches = glob($path);
+				if (false === $matches) {
+					continue;
+				}
+				foreach ($matches as $match) {
+					$this->sourceFiles[] = $match;
+				}
+				continue;
+			}
+			$this->sourceFiles[] = $path;
+		}
 		return $this;
 	}
 	
@@ -193,7 +226,7 @@ class Concatenator
 	{
 		if (null !== $this->constants) return $this->constants;
 		
-		$file = $this->getRealpath("constants.yml");
+		$file = $this->find("constants.yml");
 		
 		if (!$file) {
 			$this->constants = array();
@@ -203,7 +236,7 @@ class Concatenator
 		return $this->constants = Spyc::YAMLLoad($file);
 	}
 	
-	protected function getRealpath($path)
+	protected function find($path)
 	{
 		if (realpath($path)) {
 			return realpath($path);
