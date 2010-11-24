@@ -11,7 +11,7 @@
  */
 
 /**
- * Require Spyc (Simple PHP YAML Class) YAML Parser for parsing constants configs
+ * Require Spyc (Simple PHP YAML Class) YAML Parser for parsing constants config
  */
 require_once "Concatenator/spyc.php";
 
@@ -22,17 +22,55 @@ require_once "Concatenator/spyc.php";
  */
 class Concatenator
 {
-	protected $loadPath    = array();
-	protected $sourceFiles = array();
-	protected $provide     = array();
+	/**
+	 * List of load paths
+	 * @var array
+	 */
+	protected $loadPath = array();
 	
+	/**
+	 * List of source files which should be concatenated, can contain Wildcards (*)
+	 * in filenames if expand_paths option is ON (default is ON)
+	 * @var array
+	 */
+	protected $sourceFiles = array();
+	
+	/**
+	 * List of all assets which should be installed on installAssets()
+	 * @var array
+	 */
+	protected $provide = array();
+	
+	/**
+	 * Root for all paths
+	 * @var string
+	 */
 	protected $root = ".";	
 	
+	/**
+	 * Directory for installing assets
+	 * @var string
+	 */
 	protected $assetRoot;
 	
+	/**
+	 * Flags
+	 */
+	protected $writeInfos    = false;
 	protected $expandPaths   = true;
 	protected $stripComments = true;
 	
+	/**
+	 * Helper var, gets incremented for each file which gets added to the Concatenation
+	 * @var int
+	 */
+	protected $numFiles = 0;
+	
+	/**
+	 * Contains the defined constants and their values from the constants.yml config
+	 *
+	 * @var array
+	 */
 	protected $constants;
 	
 	public function __construct(Array $options = array())
@@ -40,16 +78,39 @@ class Concatenator
 		$this->setOptions($options);
 	}
 	
+	/**
+	 * Adds all source files to the concatenation
+	 *
+	 * @return Concatenator_Concatenation
+	 */
 	public function getConcatenation()
 	{
 		$concatenation = new Concatenator_Concatenation();
+		$startTime     = microtime(true);
+		
 		foreach ($this->sourceFiles as $file) {
 			$this->addFile($file, $concatenation);
 		}
+		
+		if ($this->writeInfos) {
+			$concatenation->fwrite(sprintf(
+				'// Built %d source file(s) in %f Seconds', 
+				$this->numFiles, 
+				microtime(true) - $startTime
+			));
+		}
+		
 		$concatenation->rewind();
 		return $concatenation;
 	}
 	
+	/**
+	 * Processes a single file line by line and adds it to the concatenation
+	 *
+	 * @param  string                     $file File name
+	 * @param  Concatenator_Concatenation $concatenation
+	 * @return Concatenator
+	 */
 	protected function addFile($file, Concatenator_Concatenation $concatenation)
 	{
 		if (substr($file, -3, 3) !== '.js') {
@@ -57,6 +118,11 @@ class Concatenator
 		}
 		
 		$file = $this->find($file);
+		
+		if (!$file) {
+			throw new InvalidArgumentException("File not found");
+		}
+		
 		$file = new Concatenator_SourceFile($file);
 		
 		$constants          = $this->readConstants();
@@ -99,10 +165,8 @@ class Concatenator
 			
 			if ($this->stripComments) {
 				// Strip C-style single line comments
-				if ($line->isComment()) {
-					continue;
-				}
-				
+				if ($line->isComment()) continue;
+			
 				if ($line->beginsPdocComment()) {
 					$inPdocComment = true;
 				}
@@ -124,12 +188,29 @@ class Concatenator
 			$concatenation->fwrite($line->toString());
 		}
 		$concatenation->fwrite("\n");
+		$this->numFiles++;
 		return $this;
 	}
 	
+	/**
+	 * Copies all assets specified by "provide" diretives to the asset_root
+	 *
+	 * Currently a stub, as support for the "provide" directive is currently not
+	 * implemented.
+	 *
+	 * @return Concatenator
+	 */
 	public function installAssets()
-	{}
+	{
+		return $this;
+	}
 	
+	/** 
+	 * Set the asset root
+	 *
+	 * @param  string $assetRoot
+	 * @return Concatenator
+	 */
 	public function setAssetRoot($assetRoot)
 	{
 		if (!is_string($assetRoot) or empty($assetRoot)) {
@@ -141,6 +222,12 @@ class Concatenator
 		
 		$this->assetRoot = $assetRoot;
 		return $this;		
+	}
+	
+	public function setWriteInfos($writeInfos = true)
+	{
+		$this->writeInfos = $writeInfos;
+		return $this;
 	}
 	
 	public function setExpandPaths($expandPaths = true)
@@ -216,12 +303,22 @@ class Concatenator
 		
 		foreach ($options as $key => $value) {
 			$setter = "set" . str_replace(" ", null, ucwords(str_replace("_", " ", $key)));
+			
+			if (!is_callable(array($this, $setter))) {
+				throw new UnexpectedValueException("Option {$key} is not implemented");
+			}
+			
 			$this->{$setter}($value);
 		}
 		
 		return $this;
 	}
 	
+	/**
+	 * Look for a file named "constants.yml" in the load path and parse it with Spyc
+	 *
+	 * @return array Constants and their respective values as array
+	 */
 	protected function readConstants()
 	{
 		if (null !== $this->constants) return $this->constants;
@@ -236,6 +333,12 @@ class Concatenator
 		return $this->constants = Spyc::YAMLLoad($file);
 	}
 	
+	/**
+	 * Searches the load path for a given path
+	 * 
+	 * @param  string      $path
+	 * @return bool|string Returns FALSE if the file was not found or the full path
+	 */
 	protected function find($path)
 	{
 		if (realpath($path)) {
