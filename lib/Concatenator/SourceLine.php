@@ -15,7 +15,6 @@ class Concatenator_SourceLine
 	protected $line;
 	protected $lineNumber;
 	
-	protected $comment;
 	protected $command;
 	
 	const COMMAND_START = "=";
@@ -28,7 +27,7 @@ class Concatenator_SourceLine
 	
 	public function isComment()
 	{
-		return substr(trim($this->line), 0, 2) === '//';
+		return substr(trim($this->line), 0, 2) == '//';
 	}
 	
 	public function isRequire()
@@ -57,17 +56,6 @@ class Concatenator_SourceLine
 		return $argument;
 	}
 	
-	public function getComment()
-	{
-		if ($this->comment !== null) {
-			return $this->comment;
-		}
-		if (!$this->isComment()) {
-			return null;
-		}
-		return $this->comment = trim(substr(trim($this->line), 2));
-	}
-	
 	public function beginsPdocComment()
 	{
 		return substr(trim($this->line), 0, 3) == '/**';
@@ -94,11 +82,11 @@ class Concatenator_SourceLine
 			return $this->command;
 		}
 		if (!$this->isComment()) {
-			return null;
+			return;
 		}
-		$comment = $this->getComment();
+		$comment = trim(substr(trim($this->line), 2));
 		if (substr($comment, 0, 1) !== static::COMMAND_START) {
-			return null;
+			return;
 		}
 		$command = trim(substr($comment, 1));
 		$parts   = explode(" ", $command);

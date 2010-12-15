@@ -10,8 +10,12 @@
  * @link      http://github.com/CHH/concatenator
  */
 
+require_once "Concatenator/Concatenation.php";
+require_once "Concatenator/SourceLine.php";
+require_once "Concatenator/SourceFile.php";
+
 /**
- * Require Spyc (Simple PHP YAML Class) YAML Parser for parsing constants config
+ * Require Spyc (Simple PHP YAML Class) for parsing constants configs
  */
 require_once "Concatenator/spyc.php";
 
@@ -45,13 +49,15 @@ class Concatenator
 	 * Root for all paths
 	 * @var string
 	 */
-	protected $root = ".";	
+	protected $root = ".";
 	
 	/**
 	 * Directory for installing assets
 	 * @var string
 	 */
 	protected $assetRoot;
+	
+	protected $constantsConfig = "constants.yml";
 	
 	/**
 	 * Flags
@@ -60,11 +66,7 @@ class Concatenator
 	protected $expandPaths   = true;
 	protected $stripComments = true;
 	
-	/**
-	 * Helper var, gets incremented for each file which gets added to the Concatenation
-	 * @var int
-	 */
-	protected $numFiles = 0;
+	protected $processedFiles = array();
 	
 	/**
 	 * Contains the defined constants and their values from the constants.yml config
@@ -89,14 +91,16 @@ class Concatenator
 		$startTime     = microtime(true);
 		
 		foreach ($this->sourceFiles as $file) {
-			$this->addFile($file, $concatenation);
+			$this->processFile($file, $concatenation);
 		}
 		
 		if ($this->writeInfos) {
+			$stats = $concatenation->fstat();
 			$concatenation->fwrite(sprintf(
-				'// Built %d source file(s) in %f Seconds', 
-				$this->numFiles, 
-				microtime(true) - $startTime
+				'/* Built %d source file(s) in %f Seconds, %d Bytes */', 
+				count($this->processedFiles), 
+				microtime(true) - $startTime,
+				$stats["size"]
 			));
 		}
 		
@@ -106,21 +110,25 @@ class Concatenator
 	
 	/**
 	 * Processes a single file line by line and adds it to the concatenation
-	 *
+	 * 
 	 * @param  string                     $file File name
 	 * @param  Concatenator_Concatenation $concatenation
 	 * @return Concatenator
 	 */
-	protected function addFile($file, Concatenator_Concatenation $concatenation)
+	protected function processFile($file, Concatenator_Concatenation $concatenation)
 	{
-		if (substr($file, -3, 3) !== '.js') {
-			$file .= '.js';
+		// Assume js if the file has no extension
+		if (!pathinfo($argument, PATHINFO_EXTENSION)) {
+			$argument .= '.js';
 		}
 		
-		$file = $this->find($file);
+		$originalFileName = $file;
+		$file             = $this->getAbsolutePath($file);
+		
+		if (in_array($file, $this->processedFiles)) return;
 		
 		if (!$file) {
-			throw new InvalidArgumentException("File not found");
+			throw new InvalidArgumentException("File $originalFileName not found");
 		}
 		
 		$file = new Concatenator_SourceFile($file);
@@ -139,20 +147,26 @@ class Concatenator
 			} else if ($line->isRequire()) {
 				$argument = $line->getRequire();
 				
-				$searchLoadPath = substr($argument, 0, 1) === '<';
+				// Look up file in load path if argument is enclosed in angle brackets
+				$searchLoadPath = substr($argument, 0, 1) === '<' and substr($argument, -1, 1) === '>';
 				
+				// get the filename
 				$argument = trim($argument, '<>"');
 				
-				if (substr($argument, -3, 3) !== '.js') {
+				// Assume js if file has no extension
+				if (!pathinfo($argument, PATHINFO_EXTENSION)) {
 					$argument .= '.js';
 				}
 				
+				// if the file was required with angle brackets, then look up file in
+				// load paths, otherwise look it up relative to the folder where 
+				// the current file lives in
 				$requiredFile = $searchLoadPath 
-					? $this->find($argument) 
-					: realpath(dirname($file) . DIRECTORY_SEPARATOR . $argument);
+					? $this->find($argument)
+					: dirname($file) . DIRECTORY_SEPARATOR . $argument;
 				
 				if ($requiredFile) {	
-					$this->addFile($requiredFile, $concatenation);
+					$this->processFile($requiredFile, $concatenation);
 				} else {
 					throw new Exception(sprintf(
 						'%s not found in %s',
@@ -188,12 +202,12 @@ class Concatenator
 			$concatenation->fwrite($line->toString());
 		}
 		$concatenation->fwrite("\n");
-		$this->numFiles++;
+		$this->processedFiles[] = $file;
 		return $this;
 	}
 	
 	/**
-	 * Copies all assets specified by "provide" diretives to the asset_root
+	 * Copies all assets specified by "provide" directives to the asset_root
 	 *
 	 * Currently a stub, as support for the "provide" directive is currently not
 	 * implemented.
@@ -255,17 +269,15 @@ class Concatenator
 			$loadPath = array($loadPath);
 		}
 		foreach ($loadPath as $path) {
-			if ($this->expandPaths) {
-				$matches = glob($path);
-				if (false === $matches) {
-					continue;
-				}
+			if ($this->expandPaths and $matches = glob($path)) {
 				foreach ($matches as $match) {
-					$this->loadPath[] = $match;
+					array_unshift($this->loadPath, $path);
 				}
 				continue;
 			}
-			$this->loadPath[] = $path;
+			if ($path = $this->getAbsolutePath($path)) {
+				array_unshift($this->loadPath, $path);
+			}
 		}
 		return $this;
 	}
@@ -274,17 +286,15 @@ class Concatenator
 	{
 		$this->sourceFiles = array();
 		foreach ($sourceFiles as $path) {
-			if ($this->expandPaths) {
-				$matches = glob($path);
-				if (false === $matches) {
-					continue;
-				}
+			if ($this->expandPaths and $matches = glob($path)) {
 				foreach ($matches as $match) {
 					$this->sourceFiles[] = $match;
 				}
 				continue;
 			}
-			$this->sourceFiles[] = $path;
+			if ($path = $this->getAbsolutePath($path)) {
+				$this->sourceFiles[] = $path;
+			}
 		}
 		return $this;
 	}
@@ -315,44 +325,60 @@ class Concatenator
 	}
 	
 	/**
-	 * Look for a file named "constants.yml" in the load path and parse it with Spyc
-	 *
-	 * @return array Constants and their respective values as array
-	 */
-	protected function readConstants()
-	{
-		if (null !== $this->constants) return $this->constants;
-		
-		$file = $this->find("constants.yml");
-		
-		if (!$file) {
-			$this->constants = array();
-			return $this->constants;
-		}
-		
-		return $this->constants = Spyc::YAMLLoad($file);
-	}
-	
-	/**
-	 * Searches the load path for a given path
+	 * Looks up a given path in the load path(s)
 	 * 
 	 * @param  string      $path
 	 * @return bool|string Returns FALSE if the file was not found or the full path
 	 */
 	protected function find($path)
 	{
-		if (realpath($path)) {
-			return realpath($path);
-		}
-		
 		if (!$this->loadPath) return false;
 		
 		foreach ($this->loadPath as $loadPath) {
 			$absolutePath = realpath($loadPath . DIRECTORY_SEPARATOR . $path);
-			if (is_readable($absolutePath)) {
-				return $absolutePath;
-			}
+			if ($absolutePath) return $absolutePath;
 		}
 		return false;
 	}
-}
+	
+	/**
+	 * Look for files named "constants.yml" in the load path and parse it with Spyc
+	 *
+	 * @return array Constants and their respective values as array
+	 */
+	protected function readConstants($reload = false)
+	{
+		if ($reload) $this->constants = null;
+		
+		if (null !== $this->constants) return $this->constants;
+		
+		$this->constants = array();
+		
+		foreach ($this->loadPath as $loadPath) {
+			if (!$file = realpath($loadPath . DIRECTORY_SEPARATOR . $this->constantsConfig)) {
+				continue;
+			}
+			$this->constants = array_merge($this->constants, Spyc::YAMLLoad($file));
+		}
+		return $this->constants;
+	}
+	
+	protected function getAbsolutePath($path)
+	{
+		return self::isAbsolute($path) ? $path : realpath($this->root . DIRECTORY_SEPARATOR . $path);
+	}
+	
+	protected static function isAbsolute($path)
+	{
+		$sameWhenExpanded = substr($path, 0, 1) == substr(realpath($path), 0, 1);
+		return $sameWhenExpanded or self::platformAbsolutePath($path);
+	}
+	
+	protected static function platformAbsolutePath($path)
+	{
+		if (substr(strtoupper(PHP_OS), 0, 3) == "WIN") {
+			return substr($path, 0, 1) != '\\' && (bool) preg_match('/[A-Za-z]:[\/\\\]/', $path);
+		}
+		return false;
+	}
+}	
