@@ -44,7 +44,7 @@ comments (//, /* .. */) get stripped off?
 _____________
 E X A M P L E: Build all files on every Request
 
-Put this in a File and request it via a <script> Tag in your page:
+Put this in a File:
 <?php
 
 define("JS_PATH", realpath("path/to/your/js/files"));
@@ -61,5 +61,10 @@ $concatenator = new Concatenator($options);
 header("Content-type: application/x-javascript");
 $concatenator->getConcatenation()->fpassthru();
 ?>
+
+and then put a script tag into your layout, requesting the previously created file:
+<script type="text/javascript" src="/path/to/the/concatenating/script"></script>
+
+Have fun!
 
 
