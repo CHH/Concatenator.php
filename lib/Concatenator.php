@@ -118,8 +118,8 @@ class Concatenator
 	protected function processFile($file, Concatenator_Concatenation $concatenation)
 	{
 		// Assume js if the file has no extension
-		if (!pathinfo($argument, PATHINFO_EXTENSION)) {
-			$argument .= '.js';
+		if (!pathinfo($file, PATHINFO_EXTENSION)) {
+			$file .= '.js';
 		}
 		
 		$originalFileName = $file;
